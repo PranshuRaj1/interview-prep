@@ -1,4 +1,4 @@
-What's the difference between method overloading and method overriding, and how does the JVM resolve each at runtime vs compile time?
+Q1) What's the difference between method overloading and method overriding, and how does the JVM resolve each at runtime vs compile time?
 
 Method Overloading -> Resolved at Compile Time:
 Overloading means defining multiple methods with same name but different parameters signatures in the same class.
@@ -126,3 +126,56 @@ String speak(int times) { return "x" + times; } // overloads
 The Golden Rule
 Overloading is about the compiler choosing which method signature to call.
 Overriding is about the JVM choosing whose implementation to run.
+
+Q2) Explain the Liskov Substitution Principle with a real example where violating it causes a runtime bug.
+
+In plain terms: a subclass should be fully usable wherever its parent class is expected — no surprises, no broken behavior.
+
+he said : "If S is a subtype of T, then objects of type T may be replaced with objects of type S without altering the correctness of the program."
+
+This is the most famous LSP violation because it feels mathematically correct but breaks code.
+
+class Rectangle {
+protected int width;
+protected int height;
+
+    public void setWidth(int w)  { this.width = w; }
+    public void setHeight(int h) { this.height = h; }
+
+    public int area() { return width * height; }
+
+}
+
+class Square extends Rectangle {
+
+    // A square must keep width == height, so we override both setters
+    @Override
+    public void setWidth(int w) {
+        this.width = w;
+        this.height = w;  // force equal
+    }
+
+    @Override
+    public void setHeight(int h) {
+        this.width = h;   // force equal
+        this.height = h;
+    }
+
+}
+
+void stretchAndPrint(Rectangle r) {
+r.setWidth(5);
+r.setHeight(10);
+// Any rectangle with w=5, h=10 should have area 50
+System.out.println("Expected: 50, Got: " + r.area());
+}
+
+Rectangle rect = new Rectangle();
+stretchAndPrint(rect);
+
+Rectangle sq = new Square();
+stretchAndPrint(sq);
+
+behaviour as per contract of rectangle is not working as expected to be. It is not mathmatically wrong
+
+The issue is : Code written for Rectangle no longer behaves as expected when given a Square.
