@@ -179,3 +179,115 @@ stretchAndPrint(sq);
 behaviour as per contract of rectangle is not working as expected to be. It is not mathmatically wrong
 
 The issue is : Code written for Rectangle no longer behaves as expected when given a Square.
+
+Q3) Why does Java not support multiple inheritance with classes but allows it with interfaces? What problem does this solve, and what problem does it introduce?
+
+Code to explain:
+class A {
+void hello() { System.out.println("A"); }
+}
+
+class B extends A {
+@Override
+void hello() { System.out.println("B"); }
+}
+
+class C extends A {
+@Override
+void hello() { System.out.println("C"); }
+}
+
+class D extends B, C { } // not allowed in Java
+
+D inherits hello() from both B and C.
+Which one runs when you call d.hello()?
+
+The JVM has no safe answer. It can't pick B or C arbitrarily that would be silent, unpredictable behaviour. It can't run both that's a different semantic entirely. So Java bans it at the language level rather than guessing.
+
+C++ allows this and forces the programmer to resolve it manually with explicit scope (B::hello()) or virtual inheritance which adds complexity and is a well-known source of bugs.
+
+Why Interfaces Are Allowed for Multiple Inheritance:
+interface Flyable {
+void fly(); // no body — just a contract
+}
+
+interface Swimmable {
+void swim(); // no body — just a contract
+}
+
+class Duck implements Flyable, Swimmable {
+public void fly() { System.out.println("flap flap"); }
+public void swim() { System.out.println("splash"); }
+}
+
+No diamond problem because there's no inherited implementation to conflict. The class always provides the one concrete body. The interface just enforces the contract.
+
+The Problem Java 8 Introduced — Default Methods
+
+Java 8 added default methods to interfaces so existing interfaces could evolve without breaking all implementing classes
+
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+interface Swimmable {
+default void move() { System.out.println("Swimming"); }
+}
+
+class Duck implements Flyable, Swimmable {
+// Compile error:
+// Duck inherits unrelated defaults for move() from Flyable and Swimmable
+}
+
+The diamond problem is back — just at the interface level now.
+
+How Java Resolves Default Method Conflicts — 3 Rules
+Rule 1 — Class always wins over interface:
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+class Animal {
+public void move() { System.out.println("Animal moving"); }
+}
+
+class Duck extends Animal implements Flyable {
+// No conflict — Animal.move() wins, interface default ignored
+}
+
+new Duck().move(); // → "Animal moving"
+
+Rule 2 — More specific interface wins:
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+interface FastFlyable extends Flyable {
+default void move() { System.out.println("Fast Flying"); }
+}
+
+class Duck implements Flyable, FastFlyable { }
+
+new Duck().move(); // → "Fast Flying" (FastFlyable is more specific)
+
+Rule 3 — If still ambiguous, class MUST explicitly resolve it:
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+interface Swimmable {
+default void move() { System.out.println("Swimming"); }
+}
+
+class Duck implements Flyable, Swimmable {
+
+    @Override
+    public void move() {
+        Flyable.super.move();    // explicitly pick one
+        // or Swimmable.super.move();
+        // or write entirely new logic
+    }
+
+}
+
+The compiler forces you to resolve it — it won't guess. This is Java's deliberate design: make ambiguity a compile error, not a runtime surprise.
