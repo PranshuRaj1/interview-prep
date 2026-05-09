@@ -291,3 +291,191 @@ class Duck implements Flyable, Swimmable {
 }
 
 The compiler forces you to resolve it — it won't guess. This is Java's deliberate design: make ambiguity a compile error, not a runtime surprise.
+
+Q4) What is the diamond problem? How does Java 8+ handle it when two interfaces have default methods with the same signature?
+
+        A        ← defines hello()
+       / \
+      B   C      ← both override hello()
+       \ /
+        D        ← inherits from both — which hello() runs?
+
+How Java Resolves Default Method Conflicts — 3 Rules
+Rule 1 — Class always wins over interface:
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+class Animal {
+public void move() { System.out.println("Animal moving"); }
+}
+
+class Duck extends Animal implements Flyable {
+// No conflict — Animal.move() wins, interface default ignored
+}
+
+new Duck().move(); // → "Animal moving"
+
+Rule 2 — More specific interface wins:
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+interface FastFlyable extends Flyable {
+default void move() { System.out.println("Fast Flying"); }
+}
+
+class Duck implements Flyable, FastFlyable { }
+
+new Duck().move(); // → "Fast Flying" (FastFlyable is more specific)
+
+Rule 3 — If still ambiguous, class MUST explicitly resolve it:
+interface Flyable {
+default void move() { System.out.println("Flying"); }
+}
+
+interface Swimmable {
+default void move() { System.out.println("Swimming"); }
+}
+
+class Duck implements Flyable, Swimmable {
+
+    @Override
+    public void move() {
+        Flyable.super.move();    // explicitly pick one
+        // or Swimmable.super.move();
+        // or write entirely new logic
+    }
+
+}
+
+Q5) What's the difference between composition and aggregation? When would you choose one over the other in a real system design?
+
+both are "has-a" relationships, but they differ in one critical dimension
+
+Composition — "owns-a" relationship. Child cannot exist without the parent. Parent controls the child's lifecycle.
+
+Aggregation — "has-a" relationship. Child exists independently. Parent just holds a reference
+
+"If I delete the parent, should the child also be deleted?"
+
+YES → Composition
+NO → Aggregation
+
+Composition:
+class Car {
+private final Engine engine;
+
+    Car() {
+        this.engine = new Engine(); // Car creates it, Car owns it
+    }
+    // Engine has no life outside this Car
+
+}
+
+Aggregation:
+class Playlist {
+private List<Song> songs;
+
+    void add(Song song) { songs.add(song); } // Song passed in — exists outside
+
+}
+// Deleting Playlist doesn't delete the Songs
+
+// COMPOSITION — Car creates Engine itself
+Car() {
+this.engine = new Engine(); // ← new is INSIDE
+}
+
+// AGGREGATION — Playlist receives Song from outside
+void add(Song song) { // ← object comes IN as parameter
+songs.add(song);
+}
+
+The new keyword location tells you everything:
+new written INSIDE the parent class → Composition (parent owns it)
+new written OUTSIDE, passed in → Aggregation (just a reference)
+
+Q6) Can a constructor be private? If yes, what design patterns use this and why?
+
+Yes, absolutely. A constructor can be private. It's a deliberate design decision that means "no outside code can directly instantiate this class."
+
+What Happens Without It
+class DatabaseConnection {
+DatabaseConnection() { } // public by default
+}
+
+// Anyone can do this — uncontrolled
+DatabaseConnection c1 = new DatabaseConnection();
+DatabaseConnection c2 = new DatabaseConnection();
+DatabaseConnection c3 = new DatabaseConnection(); // 100 connections? no one stops you
+
+A private constructor puts you in control of how and how many instances get created.
+
+Design Patterns That Use Private Constructors
+
+1. Singleton Pattern — Exactly One Instance Ever
+   The problem it solves: some resources must have exactly one instance — a DB connection pool, a config manager, a logger. Multiple instances would cause conflicts or waste.
+
+class DatabasePool {
+private static DatabasePool instance; // the one instance
+
+    private DatabasePool() {               // ← private: no one else can call new
+        System.out.println("Pool created");
+    }
+
+    public static DatabasePool getInstance() {
+        if (instance == null) {
+            instance = new DatabasePool(); // only created once
+        }
+        return instance;
+    }
+
+}
+
+DatabasePool p1 = DatabasePool.getInstance();
+DatabasePool p2 = DatabasePool.getInstance();
+
+System.out.println(p1 == p2); // → true same object
+
+Why private constructor? Without it, anyone can bypass getInstance() and call new DatabasePool() directly — breaking the "exactly one" guarantee entirely.
+
+Thread-safe version (real production code):
+class DatabasePool {
+private static volatile DatabasePool instance;
+
+    private DatabasePool() { }
+
+    public static DatabasePool getInstance() {
+        if (instance == null) {
+            synchronized (DatabasePool.class) {
+                if (instance == null) {          // double-checked locking
+                    instance = new DatabasePool();
+                }
+            }
+        }
+        return instance;
+    }
+
+}
+
+2. Factory Method Pattern — Control What Gets Created
+   The problem it solves: the caller shouldn't decide which concrete class to instantiate — the factory should, based on input or config.
+
+class Shape {
+private String type;
+
+    private Shape(String type) {       // ← private: can't do new Shape() directly
+        this.type = type;
+    }
+
+    // Factory methods are the only way in
+    public static Shape createCircle()    { return new Shape("circle"); }
+    public static Shape createSquare()    { return new Shape("square"); }
+    public static Shape createTriangle()  { return new Shape("triangle"); }
+
+}
+Shape s = Shape.createCircle(); // clean, descriptive
+Shape s = new Shape("circle"); // compile error — constructor is private
+
+A private constructor is a contract that says object creation is too important to leave to the caller. It's the foundation of Singleton, Factory, and Builder patterns — each of which centralises creation logic for a different reason: controlling count, controlling type, or controlling validity.
